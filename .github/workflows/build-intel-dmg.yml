@@ -1,0 +1,65 @@
+name: Build Intel DMG
+
+on:
+  workflow_dispatch:
+    inputs:
+      codex_dmg_url:
+        description: "Direct download URL for source Codex.dmg"
+        required: true
+        type: string
+      output_name:
+        description: "Optional output DMG file name"
+        required: false
+        default: "CodexAppMacIntel.dmg"
+        type: string
+
+jobs:
+  build:
+    runs-on: macos-13
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Download source DMG
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ github.workspace }}/_input"
+          curl -fL "${{ inputs.codex_dmg_url }}" -o "${{ github.workspace }}/_input/Codex.dmg"
+
+      - name: Run Intel converter
+        run: |
+          set -euo pipefail
+          chmod +x ./build-intel.sh
+          ./build-intel.sh "${{ github.workspace }}/_input/Codex.dmg"
+
+      - name: Normalize output file name
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.output_name }}" != "CodexAppMacIntel.dmg" ]; then
+            mv -f "./CodexAppMacIntel.dmg" "./${{ inputs.output_name }}"
+          fi
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: intel-dmg
+          path: "./${{ inputs.output_name }}"
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            ./log.txt
+            ./.tmp
+          if-no-files-found: warn
+          retention-days: 7
