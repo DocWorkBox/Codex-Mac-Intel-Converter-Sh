@@ -5,7 +5,8 @@ on:
     inputs:
       codex_dmg_url:
         description: "Direct download URL for source Codex.dmg"
-        required: true
+        required: false
+        default: "https://persistent.oaistatic.com/codex-app-prod/Codex.dmg"
         type: string
       output_name:
         description: "Optional output DMG file name"
