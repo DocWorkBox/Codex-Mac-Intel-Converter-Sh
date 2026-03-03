@@ -235,8 +235,31 @@ fi
 CLI_X64_ROOT="${BUILD_PROJECT}/node_modules/@openai/codex-darwin-x64/vendor/x86_64-apple-darwin"
 CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
 RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
-[[ -f "${CLI_X64_BIN}" ]] || die "x64 Codex CLI binary not found after npm install"
-[[ -f "${RG_X64_BIN}" ]] || die "x64 rg binary not found after npm install"
+
+# On arm64 hosts, npm may skip darwin-x64 optional package. Fetch tarball explicitly.
+if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
+  log "x64 Codex CLI package not found in node_modules, fetching @openai/codex-darwin-x64 tarball"
+  CODEX_JS_PKG="${BUILD_PROJECT}/node_modules/@openai/codex/package.json"
+  CODEX_VER="$(node -p "require(process.argv[1]).version" "${CODEX_JS_PKG}" 2>/dev/null || true)"
+  PKG_SPEC="@openai/codex-darwin-x64@${CODEX_VER:-latest}"
+  PKG_DIR="${WORK_DIR}/codex-darwin-x64-package"
+  mkdir -p "${PKG_DIR}"
+  (
+    cd "${PKG_DIR}"
+    if ! npm pack --silent "${PKG_SPEC}" >/tmp/codex_pack_name.txt 2>/tmp/codex_pack_err.txt; then
+      log "Failed to pack ${PKG_SPEC}, falling back to @openai/codex-darwin-x64@latest"
+      npm pack --silent "@openai/codex-darwin-x64@latest" >/tmp/codex_pack_name.txt
+    fi
+    PKG_TGZ="$(tail -n 1 /tmp/codex_pack_name.txt)"
+    tar -xzf "${PKG_TGZ}"
+  )
+  CLI_X64_ROOT="${PKG_DIR}/package/vendor/x86_64-apple-darwin"
+  CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
+  RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
+fi
+
+[[ -f "${CLI_X64_BIN}" ]] || die "x64 Codex CLI binary not found after npm install/pack"
+[[ -f "${RG_X64_BIN}" ]] || die "x64 rg binary not found after npm install/pack"
 
 # Replace bundled arm64 codex/rg command-line binaries.
 log "Replacing bundled codex/rg binaries with x64 versions"
