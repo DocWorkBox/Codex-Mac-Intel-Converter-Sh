@@ -267,7 +267,7 @@ if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
   CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
   RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
 
-  # Final fallback for cases where install is blocked but tarball download still works.
+  # Fallback 1: npm pack from registry.
   if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
     log "Direct install still missing x64 CLI package, trying npm pack fallback"
     PKG_DIR="${WORK_DIR}/codex-darwin-x64-package"
@@ -281,6 +281,36 @@ if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
       PKG_TGZ="$(tail -n 1 /tmp/codex_pack_name.txt)"
       tar -xzf "${PKG_TGZ}"
     )
+    CLI_X64_ROOT="${PKG_DIR}/package/vendor/x86_64-apple-darwin"
+    CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
+    RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
+  fi
+
+  # Fallback 2: resolve tarball URL and download via curl (bypasses npm platform gating).
+  if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
+    log "npm pack fallback still missing x64 CLI package, trying direct tarball download"
+    PKG_DIR="${WORK_DIR}/codex-darwin-x64-package-direct"
+    mkdir -p "${PKG_DIR}"
+
+    fetch_tarball_and_unpack() {
+      local spec="$1"
+      local tarball_url
+      tarball_url="$(cd "${BUILD_PROJECT}" && npm view "${spec}" dist.tarball --silent 2>/tmp/codex_view.err | tail -n 1 || true)"
+      [[ -n "${tarball_url}" ]] || return 1
+      (
+        cd "${PKG_DIR}"
+        rm -rf package package.tgz
+        curl -fL "${tarball_url}" -o package.tgz
+        tar -xzf package.tgz
+      )
+      return 0
+    }
+
+    if ! fetch_tarball_and_unpack "${PKG_SPEC_VERSIONED}"; then
+      log "Failed direct tarball fetch for ${PKG_SPEC_VERSIONED}, trying ${PKG_SPEC_LATEST}"
+      fetch_tarball_and_unpack "${PKG_SPEC_LATEST}" || true
+    fi
+
     CLI_X64_ROOT="${PKG_DIR}/package/vendor/x86_64-apple-darwin"
     CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
     RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
