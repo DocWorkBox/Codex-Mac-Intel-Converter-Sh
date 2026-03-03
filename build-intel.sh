@@ -238,28 +238,57 @@ RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
 
 # On arm64 hosts, npm may skip darwin-x64 optional package. Fetch tarball explicitly.
 if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
-  log "x64 Codex CLI package not found in node_modules, fetching @openai/codex-darwin-x64 tarball"
+  log "x64 Codex CLI package not found in node_modules, trying to install @openai/codex-darwin-x64"
   CODEX_JS_PKG="${BUILD_PROJECT}/node_modules/@openai/codex/package.json"
   CODEX_VER="$(node -p "require(process.argv[1]).version" "${CODEX_JS_PKG}" 2>/dev/null || true)"
-  PKG_SPEC="@openai/codex-darwin-x64@${CODEX_VER:-latest}"
-  PKG_DIR="${WORK_DIR}/codex-darwin-x64-package"
-  mkdir -p "${PKG_DIR}"
-  (
-    cd "${PKG_DIR}"
-    if ! npm pack --silent "${PKG_SPEC}" >/tmp/codex_pack_name.txt 2>/tmp/codex_pack_err.txt; then
-      log "Failed to pack ${PKG_SPEC}, falling back to @openai/codex-darwin-x64@latest"
-      npm pack --silent "@openai/codex-darwin-x64@latest" >/tmp/codex_pack_name.txt
-    fi
-    PKG_TGZ="$(tail -n 1 /tmp/codex_pack_name.txt)"
-    tar -xzf "${PKG_TGZ}"
-  )
-  CLI_X64_ROOT="${PKG_DIR}/package/vendor/x86_64-apple-darwin"
+  PKG_SPEC_VERSIONED="@openai/codex-darwin-x64@${CODEX_VER:-latest}"
+  PKG_SPEC_LATEST="@openai/codex-darwin-x64@latest"
+
+  try_install_pkg() {
+    local spec="$1"
+    local attempts=4
+    local i
+    for i in $(seq 1 "${attempts}"); do
+      if (cd "${BUILD_PROJECT}" && npm install --no-save --no-audit --no-fund "${spec}" >/tmp/codex_pkg_install.out 2>/tmp/codex_pkg_install.err); then
+        return 0
+      fi
+      log "Install ${spec} failed (attempt ${i}/${attempts}), retrying..."
+      sleep $((i * 2))
+    done
+    return 1
+  }
+
+  if ! try_install_pkg "${PKG_SPEC_VERSIONED}"; then
+    log "Failed to install ${PKG_SPEC_VERSIONED}, trying ${PKG_SPEC_LATEST}"
+    try_install_pkg "${PKG_SPEC_LATEST}" || true
+  fi
+
+  CLI_X64_ROOT="${BUILD_PROJECT}/node_modules/@openai/codex-darwin-x64/vendor/x86_64-apple-darwin"
   CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
   RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
+
+  # Final fallback for cases where install is blocked but tarball download still works.
+  if [[ ! -f "${CLI_X64_BIN}" || ! -f "${RG_X64_BIN}" ]]; then
+    log "Direct install still missing x64 CLI package, trying npm pack fallback"
+    PKG_DIR="${WORK_DIR}/codex-darwin-x64-package"
+    mkdir -p "${PKG_DIR}"
+    (
+      cd "${PKG_DIR}"
+      if ! npm pack --silent "${PKG_SPEC_VERSIONED}" >/tmp/codex_pack_name.txt 2>/tmp/codex_pack_err.txt; then
+        log "Failed to pack ${PKG_SPEC_VERSIONED}, falling back to ${PKG_SPEC_LATEST}"
+        npm pack --silent "${PKG_SPEC_LATEST}" >/tmp/codex_pack_name.txt
+      fi
+      PKG_TGZ="$(tail -n 1 /tmp/codex_pack_name.txt)"
+      tar -xzf "${PKG_TGZ}"
+    )
+    CLI_X64_ROOT="${PKG_DIR}/package/vendor/x86_64-apple-darwin"
+    CLI_X64_BIN="${CLI_X64_ROOT}/codex/codex"
+    RG_X64_BIN="${CLI_X64_ROOT}/path/rg"
+  fi
 fi
 
-[[ -f "${CLI_X64_BIN}" ]] || die "x64 Codex CLI binary not found after npm install/pack"
-[[ -f "${RG_X64_BIN}" ]] || die "x64 rg binary not found after npm install/pack"
+[[ -f "${CLI_X64_BIN}" ]] || die "x64 Codex CLI binary not found after install/pack fallback (possible npm registry outage or package publish mismatch)"
+[[ -f "${RG_X64_BIN}" ]] || die "x64 rg binary not found after install/pack fallback (possible npm registry outage or package publish mismatch)"
 
 # Replace bundled arm64 codex/rg command-line binaries.
 log "Replacing bundled codex/rg binaries with x64 versions"
