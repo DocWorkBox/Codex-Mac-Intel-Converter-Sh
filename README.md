@@ -1,42 +1,54 @@
-# Codex App for Mac Intel (Unofficial)
+# Codex Mac Intel 转换工具（非官方）
 
-Minimal helper repo to rebuild the official `Codex.dmg` into an Intel-compatible macOS app image.
+用于将官方 `Codex.dmg` 重新打包为可在 Intel Mac 上运行的 macOS 应用镜像（非官方方案）。
 
-This is an unofficial adaptation approach, similar in spirit to the Linux community port:  
+思路与 Linux 社区移植版类似：  
 [Codex App for Linux (unofficial)](https://github.com/areu01or00/Codex-App-Linux/)
 
-## What is included
+## 仓库内容
 
-- `build-intel.sh` — main build script
-- `.gitignore` — ignores build artifacts and local temp files
-- `package.json` — optional convenience `npm` script wrapper
+- `build-intel.sh`：主构建脚本
+- `.gitignore`：忽略临时构建产物
+- `package.json`：可选的脚本入口封装
 
-## Requirements
+## 环境要求
 
 - macOS
-- `bash`, `hdiutil`, `ditto`, `codesign`
-- Node.js + npm (used by the script to fetch Electron/runtime dependencies)
+- `bash`、`hdiutil`、`ditto`、`codesign`
+- Node.js + npm（用于下载 Electron/原生依赖并重建）
 
-## Quick usage
+## 快速使用
 
-1. Put your original `Codex.dmg` next to the repo folder (not inside it), so it is available as `../Codex.dmg`.
-2. Run:
+1. 将原始 `Codex.dmg` 放在仓库目录的上一级（即默认路径 `../Codex.dmg`）。
+2. 执行：
 
 ```bash
 chmod +x ./build-intel.sh
 ./build-intel.sh
 ```
 
-Or:
+或指定绝对路径：
 
 ```bash
 ./build-intel.sh /absolute/path/to/Codex.dmg
 ```
 
-## Output
+## 输出文件
 
-- `CodexAppMacIntel.dmg` — rebuilt Intel-targeted output
-- `log.txt` — full build log
-- `.tmp/` — temporary build workspace
+- `CodexAppMacIntel.dmg`：构建完成的 Intel 版本安装包
+- `log.txt`：完整构建日志
+- `.tmp/`：构建临时目录（失败时用于排错）
 
-If you have problems, ask your current Codex :)
+## 安装后安全提示（Gatekeeper）
+
+如果 macOS 提示“无法验证开发者”或阻止打开，可按以下方式处理：
+
+1. 先在 Finder 中双击 `/Applications/Codex.app` 一次，让系统记录拦截项。
+2. 打开：`系统设置 -> 隐私与安全性`，在页面底部点击“仍要打开”。
+3. 若仍被拦截，可执行去隔离标记命令：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Codex.app
+```
+
+完成后再次启动应用即可。
