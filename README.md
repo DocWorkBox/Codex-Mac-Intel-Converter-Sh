@@ -39,6 +39,11 @@ chmod +x ./build-intel.sh
 - `log.txt`：完整构建日志
 - `.tmp/`：构建临时目录（失败时用于排错）
 
+## GitHub Actions 发布
+
+- 手动运行 `.github/workflows/build-intel-dmg.yml` 后，工作流除了上传 `artifact`，还会把最新构建出的 DMG 发布到仓库的 GitHub Release。
+- Release 固定使用标签 `intel-dmg-latest`，每次成功构建都会覆盖同名资源文件，方便直接下载最新的 Intel 安装包。
+
 ## 安装后安全提示（Gatekeeper）
 
 如果 macOS 提示“无法验证开发者”或阻止打开，可按以下方式处理：
